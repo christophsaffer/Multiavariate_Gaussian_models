@@ -74,7 +74,7 @@ class MvG:
             np.mat(np.linalg.inv(sig4)) * np.mat(sig2.T)
         s = np.array(s)
 
-        # Return splitted mus, block matrices and schurkomplement
+        # Return splitted mus, block matrices and schurcomplement
         return [mu1, mu2, sig1, sig2, sig4, s]
 
     def marg(self, margout):
@@ -84,7 +84,7 @@ class MvG:
         mu = np.array(self.model[1])
         sigma = np.array(self.model[2])
 
-        # Get splitted mus, block matrices and schurkomplement
+        # Get splitted mus, block matrices and schurcomplement
         schurkomp = self.schur(mu, sigma, margout)
 
         # Calculate parameters of marg model
@@ -102,7 +102,7 @@ class MvG:
         mu = np.array(self.model[1])
         sigma = np.array(self.model[2])
 
-        # Get splitted mus, block matrices and schurkomplement
+        # Get splitted mus, block matrices and schurcomplement
         schurkomp = self.schur(mu, sigma, cond)
 
         # Calculate parameters of cond model
