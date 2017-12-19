@@ -2,15 +2,45 @@ import pandas as pd
 import numpy as np
 
 
+def decomposition(mu, sigma, ind):
+
+    # Get number of variables
+    le = len(sigma)
+
+    # Extract new mus
+    mu1 = np.delete(mu, ind)
+    mu2 = np.array([mu[ind]])
+
+    # Reorder matrix sigma
+    # Put row and column at index 'ind' to the last row and column
+    i = np.array(range(0, le))
+    i = np.delete(i, ind)
+    i = np.append(i, ind)
+    reordered = sigma[i, :][:, i]
+
+    # Get block matrices
+    sig1 = reordered[0:le - 1, 0:le - 1]
+    sig2 = reordered[0:le - 1, le - 1:le]
+    sig4 = reordered[le - 1:le, le - 1:le]
+
+    # Calculate schurcomplement
+    schur = np.mat(sig1) - np.mat(sig2) * \
+        np.mat(np.linalg.inv(sig4)) * np.mat(sig2.T)
+    schur = np.array(schur)
+
+    # Return splitted mus, block matrices and schurcomplement
+    return [mu1, mu2, sig1, sig2, sig4, schur]
+
+
 class MvG:
 
-    # Sets intial variables for an instance of the class
-    def __init__(self, name, model=0):
+    # Sets initial variables for an instance of the class
+    def __init__(self, name, model=None):
         self.name = name
         self.model = model
 
     # Fits a model to given data
-    def selection(self, data, save=True):
+    def selection(self, data):
 
         # Get the data and initialize some variables
         data = pd.read_csv(data, index_col=0)
@@ -44,38 +74,9 @@ class MvG:
         # Return density
         return (factor * np.exp(-0.5 * np.mat(x - mu) * np.mat(np.linalg.inv(sigma)) * np.mat(x - mu).T))[0, 0]
 
-    def maximum(self):
+    def argmaximum(self):
         # return mean vector as the argmax
         return np.array(self.model[1])
-
-    def schur(self, mu, sigma, ind):
-
-        # Get number of variables
-        le = len(sigma)
-
-        # Extract new mus
-        mu1 = np.delete(mu, ind)
-        mu2 = np.array([mu[ind]])
-
-        # Reorder matrix sigma
-        # Put row and column at index 'ind' to the last row and column
-        i = np.array(range(0, le))
-        i = np.delete(i, ind)
-        i = np.append(i, ind)
-        reordered = sigma[i, :][:, i]
-
-        # Get block matrices
-        sig1 = reordered[0:le - 1, 0:le - 1]
-        sig2 = reordered[0:le - 1, le - 1:le]
-        sig4 = reordered[le - 1:le, le - 1:le]
-
-        # Calculate schurcomplement
-        s = np.mat(sig1) - np.mat(sig2) * \
-            np.mat(np.linalg.inv(sig4)) * np.mat(sig2.T)
-        s = np.array(s)
-
-        # Return splitted mus, block matrices and schurcomplement
-        return [mu1, mu2, sig1, sig2, sig4, s]
 
     def marg(self, margout):
 
@@ -85,14 +86,14 @@ class MvG:
         sigma = np.array(self.model[2])
 
         # Get splitted mus, block matrices and schurcomplement
-        schurkomp = self.schur(mu, sigma, margout)
+        schurkomp = decomposition(mu, sigma, margout)
 
         # Calculate parameters of marg model
         cols = np.delete(cols, margout)
         mu = schurkomp[0]
         sigma = schurkomp[2]
 
-        # Create new MvG Object with marg model parameters
+        # Create new MvG object with marg model parameters
         return MvG("margmod", [cols, mu, sigma])
 
     def cond(self, cond, value):
@@ -103,7 +104,7 @@ class MvG:
         sigma = np.array(self.model[2])
 
         # Get splitted mus, block matrices and schurcomplement
-        schurkomp = self.schur(mu, sigma, cond)
+        schurkomp = decomposition(mu, sigma, cond)
 
         # Calculate parameters of cond model
         cols = np.delete(cols, cond)
@@ -112,5 +113,42 @@ class MvG:
         mu = np.array(np.transpose(mu))[0]
         sigma = schurkomp[5]
 
-        # Create new MvG Object with cond model parameters
+        # Create new MvG object with cond model parameters
         return MvG("condmod", [cols, mu, sigma])
+
+    def sampling(self, k=100, save=True):
+
+        # Get parameters from model
+        cols = np.array(self.model[0])
+        mu = np.array(self.model[1])
+        sigma = np.array(self.model[2])
+
+        # Cholesky decomposition of Sigma:
+        A = np.linalg.cholesky(np.matrix(sigma))
+
+        # Initialize the table of the sample points
+        cols = list(cols)
+        samples = pd.DataFrame(columns=cols)
+
+        for i in range(0, k):
+            x = []
+            for j in range(0, round(len(A) / 2)):
+                u = np.random.uniform()
+                v = np.random.uniform()
+                x.append(np.sqrt(-2 * np.log(u)) * np.cos(2 * np.pi * v))
+                x.append(np.sqrt(-2 * np.log(u)) * np.sin(2 * np.pi * v))
+
+            if len(A) % 2 != 0:
+                x.pop()
+
+            x = np.mat(x)
+            x = A * x.T + np.mat(mu).T
+            x = np.array(x.T)[0]
+            samples.loc[i] = x
+
+        if save:
+            samples.to_csv('samples/sampling_' +
+                           str(k) + '_' + self.name + '.csv')
+            print('Saved successfully')
+
+        return samples
