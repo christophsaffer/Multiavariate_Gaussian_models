@@ -72,7 +72,8 @@ class MvG:
         factor = (0.5)**(-dim * 0.5) * np.linalg.det(sigma)**(-0.5)
 
         # Return density
-        return (factor * np.exp(-0.5 * np.mat(x - mu) * np.mat(np.linalg.inv(sigma)) * np.mat(x - mu).T))[0, 0]
+        return (factor * np.exp(-0.5 * np.mat(x - mu) * np.mat(
+            np.linalg.inv(sigma)) * np.mat(x - mu).T))[0, 0]
 
     def argmaximum(self):
         # return mean vector as the argmax
@@ -85,6 +86,10 @@ class MvG:
         mu = np.array(self.model[1])
         sigma = np.array(self.model[2])
 
+        # Check if paramter is given as string or index (int)
+        if type(margout) == str:
+            margout = np.where(np.isin(cols, margout))[0][0]
+
         # Get splitted mus, block matrices and schurcomplement
         schurkomp = decomposition(mu, sigma, margout)
 
@@ -96,6 +101,14 @@ class MvG:
         # Create new MvG object with marg model parameters
         return MvG("margmod", [cols, mu, sigma])
 
+    def marg_list(self, margout):
+        margmod = self
+        margout.sort(reverse=True)
+        for mar in margout:
+            margmod = margmod.marg(mar)
+
+        return margmod
+
     def cond(self, cond, value):
 
         # Get parameters from model
@@ -103,13 +116,18 @@ class MvG:
         mu = np.array(self.model[1])
         sigma = np.array(self.model[2])
 
+        # Check if paramter is given as string or index (int)
+        if type(cond) == str:
+            cond = np.where(np.isin(cols, cond))[0][0]
+
         # Get splitted mus, block matrices and schurcomplement
         schurkomp = decomposition(mu, sigma, cond)
 
         # Calculate parameters of cond model
         cols = np.delete(cols, cond)
         mu = np.mat(schurkomp[0]).T + np.mat(schurkomp[3]) * np.mat(
-            np.linalg.inv(schurkomp[4])) * np.mat(np.array(value) - schurkomp[1])
+            np.linalg.inv(schurkomp[4])) * np.mat(
+            np.array(value) - schurkomp[1])
         mu = np.array(np.transpose(mu))[0]
         sigma = schurkomp[5]
 
@@ -152,3 +170,37 @@ class MvG:
             print('Saved successfully')
 
         return samples
+
+    def testmarg(self):
+
+        # Generate example
+        testmu = np.array([1, 2, 3])
+        testsig = np.array([[2, 3, 1], [3, -4, 2], [1, 2, -2]])
+
+        margmu = np.array([1, 3])
+        margsig = np.array([[2, 1], [1, -2]])
+
+        testmod = MvG("testmod", [["a", "b", "c"], testmu, testsig])
+        testmodmarg = testmod.marg("b")
+
+        if ((np.array_equal(testmodmarg.model[1], margmu)) & (np.array_equal(testmodmarg.model[2], margsig))):
+            return True
+        else:
+            return False
+
+    def testcond(self):
+
+        # Generate example
+        testmu = np.array([1, 2, 3])
+        testsig = np.array([[2, 3, 1], [3, -4, 2], [1, 2, -2]])
+
+        condmu = np.array([3.5, 3.5])
+        condsig = np.array([[-8.5, 0.5], [0.5, -2.5]])
+
+        testmod = MvG("testmod", [["a", "b", "c"], testmu, testsig])
+        testmodcond = testmod.cond("a", 2)
+
+        if ((np.array_equal(testmodcond.model[1], condmu)) & (np.array_equal(testmodcond.model[2], condsig))):
+            return True
+        else:
+            return False
